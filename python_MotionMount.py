@@ -1,8 +1,9 @@
 import collections
 
 import asyncio
+import struct
 from typing import Optional
-from enum import IntEnum
+from enum import Enum, IntEnum
 
 
 class MotionMountResponse(IntEnum):
@@ -14,6 +15,16 @@ class MotionMountResponse(IntEnum):
     NotFound = 404,
     MethodNotAllowed = 405,
     URITooLong = 414,
+
+
+class MotionMountValueType(Enum):
+    Integer = 0,
+    String = 1,
+    ByteArray = 2,
+    Bool = 3,
+    IPv4 = 4,
+    Void = 5,
+
 
 class MotionMountError(Exception):
     """
@@ -31,6 +42,7 @@ class NotConnectedError(MotionMountError):
 class MotionMountResponseError(MotionMountError):
     """
     """
+
     def __init__(self, value: MotionMountResponse):
         self.response_value = value
 
@@ -38,9 +50,10 @@ class MotionMountResponseError(MotionMountError):
 class Request:
     """Internal class that represents a request that's sent to the MotionMount."""
 
-    def __init__(self, key: str, value: Optional[str] = None):
+    def __init__(self, key: str, value_type: MotionMountValueType, value: Optional[str] = None):
         self.key = key
         self.value = value
+        self.value_type = value_type
 
         event_loop = asyncio.get_event_loop()
         self.future = event_loop.create_future()
@@ -52,6 +65,21 @@ class Request:
             return f"{self.key}\n".encode()
         else:
             return f"{self.key} = {self.value}\n".encode()
+
+
+def _convert_value(value, value_type: MotionMountValueType):
+    if value_type == MotionMountValueType.Integer:
+        return int(value)
+    elif value_type == MotionMountValueType.String:
+        return value.strip("\"")
+    elif value_type == MotionMountValueType.ByteArray:
+        return ValueError("Byte array not supported")
+    elif value_type == MotionMountValueType.Bool:
+        return bool(value)
+    elif value_type == MotionMountValueType.Void:
+        return value
+    else:
+        raise ValueError("Unknown value type")
 
 
 class MotionMount:
@@ -73,6 +101,9 @@ class MotionMount:
         self._writer = None
         self._reader_task = None
 
+        self.extension = None
+        self.turn = None
+
         print(f"Created MM: {address}: {port}")
 
     async def connect(self):
@@ -81,6 +112,8 @@ class MotionMount:
 
         self._writer = writer
         self._reader_task = asyncio.create_task(self._reader(reader))
+
+        #TODO: Get extension/turn so we know where we are
 
     async def disconnect(self):
         writer = self._writer
@@ -107,11 +140,29 @@ class MotionMount:
 
         print("Disconnected")
 
-    async def go_to_position(self, position: int):
+    async def get_name(self) -> str:
+        return await self._request(Request("configuration/name", MotionMountValueType.String))
+
+    async def go_to_preset(self, position: int):
         if position < 0 or position > 9:
             raise ValueError("position must be in the range [0...9]")
 
-        await self._request(Request(f"mount/preset/index = {position}"))
+        await self._request(Request(f"mount/preset/index = {position}", MotionMountValueType.Void))
+
+    async def go_to_position(self, extension: int, turn: int):
+        if extension < 0 or extension > 100: raise ValueError("extension must be in the range [0...100]")
+        if turn < -100 or turn > 100: raise  ValueError("turn must be in the range [-100...100]")
+
+        value_bytes = struct.pack('>Hh', extension, turn)
+        await self._request(Request(f"mount/preset/position = [{value_bytes.hex()}]", MotionMountValueType.Void))
+
+    async def set_extension(self, extension: int):
+        if extension < 0 or extension > 100: raise ValueError("extension must be in the range [0...100]")
+        await self._request(Request(f"mount/extension/target = {extension}", MotionMountValueType.Void))
+
+    async def set_turn(self, turn: int):
+        if turn < -100 or turn > 100: raise  ValueError("turn must be in the range [-100...100]")
+        await self._request(Request(f"mount/turn/target = {turn}", MotionMountValueType.Void))
 
     async def _request(self, request: Request):
         """ Enqueues `request`, waits for possible earlier requests and then waits for `request` to finish"""
@@ -138,8 +189,16 @@ class MotionMount:
         await self._writer.drain()
 
         # Wait for our request to finish
-        result = await request.future
-        print(f"Result: {result}")
+        value_any = await request.future
+        value = _convert_value(value_any, request.value_type)
+        return value
+
+    def _update_properties(self, key: str, value: str):
+        if key == "mount/extension/current":
+            self.extension = _convert_value(value, MotionMountValueType.Integer)
+        elif key == "mount/turn/current":
+            self.turn = _convert_value(value, MotionMountValueType.Integer)
+        # TODO: How to let the world now that a property changed????
 
     async def _reader(self, reader: asyncio.StreamReader):
         """ Infinite loop to receive data from the MotionMount and dispatch it to the waiting requests"""
@@ -151,7 +210,7 @@ class MotionMount:
             if response[0] == "#":
                 try:
                     response_value = MotionMountResponse(int(response[1:]))
-                except:
+                except ValueError:
                     response_value = MotionMountResponse.Unknown
 
                 try:
@@ -168,6 +227,8 @@ class MotionMount:
                 parts = response.split("=", 1)
                 key = parts[0].strip()
                 value = parts[1].strip()
+
+                self._update_properties(key, value)
 
                 if len(self._requests) > 0 and self._requests[0].key == key:
                     # We received the response to this request, we can pop it

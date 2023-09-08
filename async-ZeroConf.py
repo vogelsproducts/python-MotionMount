@@ -48,7 +48,10 @@ async def async_display_service_info(zeroconf: Zeroconf, service_type: str, name
 
         try:
             await mm.connect()
-            await mm.go_to_position(1)
+            await mm.go_to_preset(1)
+            name = await mm.get_name()
+            print(f"The name is: \"{name}\"")
+            await mm.go_to_position(50, -50)
         except Exception as e:
             print(f"Something bad happened: {e}")
         finally:
