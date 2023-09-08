@@ -5,9 +5,8 @@
 The default is HTTP and HAP; use --find to search for all available services in the network
 """
 
-import asyncio
 import logging
-from typing import Any, Optional, cast
+from typing import cast
 
 from zeroconf import IPVersion, ServiceStateChange, Zeroconf
 from zeroconf.asyncio import (
@@ -47,9 +46,13 @@ async def async_display_service_info(zeroconf: Zeroconf, service_type: str, name
 
         mm = MotionMount(info.parsed_addresses()[0], info.port)
 
-        await asyncio.gather(mm.connect())
-        await asyncio.sleep(10)
-        await mm.disconnect()
+        try:
+            await mm.connect()
+            await mm.go_to_position(1)
+        except Exception as e:
+            print(f"Something bad happened: {e}")
+        finally:
+            await mm.disconnect()
     else:
         print("  No info")
     print('\n')
