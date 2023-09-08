@@ -113,7 +113,7 @@ class MotionMount:
         self._writer = writer
         self._reader_task = asyncio.create_task(self._reader(reader))
 
-        #TODO: Get extension/turn so we know where we are
+        await self.update_position()
 
     async def disconnect(self):
         writer = self._writer
@@ -142,6 +142,12 @@ class MotionMount:
 
     async def get_name(self) -> str:
         return await self._request(Request("configuration/name", MotionMountValueType.String))
+
+    async def update_position(self):
+        # We mark the value types as Void, as we've no further interest in the actual value
+        # We just want to trigger the notification logic
+        await self._request(Request("mount/extension/current", MotionMountValueType.Void))
+        await self._request(Request("mount/turn/current", MotionMountValueType.Void))
 
     async def go_to_preset(self, position: int):
         if position < 0 or position > 9:

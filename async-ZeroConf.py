@@ -49,6 +49,7 @@ async def async_display_service_info(zeroconf: Zeroconf, service_type: str, name
         try:
             await mm.connect()
             await mm.go_to_preset(1)
+            print(f"Extension: {mm.extension}")
             name = await mm.get_name()
             print(f"The name is: \"{name}\"")
             await mm.go_to_position(50, -50)
