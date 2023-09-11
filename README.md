@@ -1,20 +1,42 @@
 # Introduction 
-TODO: Give a short introduction of your project. Let this section explain the objectives or the motivation behind this project. 
+This module allows control of the TVM7675 Pro (Signature) series of MotionMount's from Vogel's Products.
 
 # Getting Started
-TODO: Guide users through getting your code up and running on their own system. In this section you can talk about:
-1.	Installation process
-2.	Software dependencies
-3.	Latest releases
-4.	API references
+This module can be installed using the following command:
+`pip install python-MotionMount`
 
-# Build and Test
-TODO: Describe and show how to build your code and run the tests. 
+In your Python code you can then use the module as follows:
+```
+import asyncio
+import motionmount
 
-# Contribute
-TODO: Explain how other users and developers can contribute to make your code better. 
+ip = "MMF8A55F.local." # Can also be "169.254.13.16" or similar
+port = 23 # The best way to get the port number is using zeroconf, but it's likely '23'
 
-If you want to learn more about creating good readme files then refer the following [guidelines](https://docs.microsoft.com/en-us/azure/devops/repos/git/create-a-readme?view=azure-devops). You can also seek inspiration from the below readme files:
-- [ASP.NET Core](https://github.com/aspnet/Home)
-- [Visual Studio Code](https://github.com/Microsoft/vscode)
-- [Chakra Core](https://github.com/Microsoft/ChakraCore)
+async def main():
+    mm = MotionMount(ip, port)
+
+    try:
+        await mm.connect()
+        await mm.go_to_preset(1)
+
+        print(f"Extension: {mm.extension}")
+
+        name = await mm.get_name()
+        print(f"The name is: \"{name}\"")
+
+        await mm.go_to_position(50, -50)
+    except Exception as e:
+        print(f"Something bad happened: {e}")
+    finally:
+        await asyncio.sleep(1)
+        await mm.disconnect()
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
+```
+
+# Build
+Building the distributable package for Pypi consists of:
+`python -m build` 
