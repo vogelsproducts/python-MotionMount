@@ -1,5 +1,5 @@
 # Introduction 
-This module allows control of the TVM7675 Pro (Signature) series of MotionMount's from Vogel's Products.
+This Python module allows control of the TVM7675 Pro (Signature) series of MotionMount's from Vogel's Products.
 
 # Getting Started
 This module can be installed using the following command:
