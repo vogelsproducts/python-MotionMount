@@ -114,10 +114,7 @@ class MotionMount:
         self.extension = None
         self.turn = None
 
-        print(f"Created MM: {address}: {port}")
-
     async def connect(self):
-        print(f"Connecting to {self.address}")
         reader, writer = await asyncio.open_connection(self.address, self.port)
 
         self._writer = writer
@@ -133,7 +130,6 @@ class MotionMount:
             self._reader_task.cancel()
         if self._writer is not None:
             self._writer.close()
-            print("Writer closed")
 
         # Cancel all waiting requests
         for request in self._requests:
@@ -147,8 +143,6 @@ class MotionMount:
         # Wait for the stream to really close
         if writer is not None:
             await writer.wait_closed()
-
-        print("Disconnected")
 
     async def get_name(self) -> str:
         return await self._request(Request("configuration/name", MotionMountValueType.String))
@@ -197,7 +191,6 @@ class MotionMount:
 
         # Wait for the previous request
         if previous_request is not None:
-            print("Awaiting previous request")
             await previous_request.future
 
         # We're ready to go!
