@@ -5,7 +5,7 @@ ip = "MMF8A55F.local." # Can also be "169.254.13.16" or similar
 port = 23 # The best way to get the port number is using zeroconf, but it's likely '23'
 
 async def main():
-    mm = MotionMount(ip, port)
+    mm = motionmount.MotionMount(ip, port)
 
     try:
         await mm.connect()

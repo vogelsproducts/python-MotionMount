@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 
-""" Example of browsing for a service.
-
-The default is HTTP and HAP; use --find to search for all available services in the network
-"""
-
 import logging
 from typing import cast
 
@@ -15,7 +10,7 @@ from zeroconf.asyncio import (
     AsyncZeroconf,
 )
 
-from python_MotionMount import *
+from motionmount import *
 
 def async_on_service_state_change(
     zeroconf: Zeroconf, service_type: str, name: str, state_change: ServiceStateChange
