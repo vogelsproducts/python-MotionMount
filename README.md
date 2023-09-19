@@ -41,6 +41,3 @@ To get the IP address of the MotionMount you can use [pyzeroconf](https://github
   
 A simple example using `pyzeroconf` is included in the `examples` folder.
     
-# Build
-Building the distributable package for Pypi consists of:
-`python -m build` 
