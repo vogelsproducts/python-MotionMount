@@ -192,6 +192,9 @@ class MotionMount:
         if writer is not None:
             await writer.wait_closed()
 
+    def is_connected(self) -> bool:
+        return self._writer is not None
+
     async def get_name(self) -> str:
         """
         Get the name of the MotionMount.
