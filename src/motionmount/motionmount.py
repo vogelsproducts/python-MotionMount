@@ -307,7 +307,7 @@ class MotionMount:
         await self._writer.drain()
 
         # Wait for our request to finish
-        value_any = await request.future
+        value_any = await asyncio.wait_for(request.future, timeout=5.0)
         value = _convert_value(value_any, request.value_type)
         return value
 
@@ -334,8 +334,19 @@ class MotionMount:
         """
         while not reader.at_eof():
             data = await reader.readline()
-            response = data.decode().strip()
 
+            if len(data) == 0:
+                # Connection was closed
+                if len(self._requests) > 0:
+                    # There is a request waiting, we will let that request know about the error
+                    popped = self._requests.popleft()
+                    popped.future.set_exception(NotConnectedError)
+
+                await self.disconnect()
+                break
+
+            # Check to see what kind of response this is
+            response = data.decode().strip()
             if response[0] == "#":
                 try:
                     response_value = MotionMountResponse(int(response[1:]))
