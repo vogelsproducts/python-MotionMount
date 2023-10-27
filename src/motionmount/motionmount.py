@@ -37,7 +37,7 @@ class MotionMountValueType(Enum):
     """
     Integer = 0,
     String = 1,
-    ByteArray = 2,
+    Bytes = 2,
     Bool = 3,
     IPv4 = 4,
     Void = 5,
@@ -120,8 +120,8 @@ def _convert_value(value, value_type: MotionMountValueType):
         return int(value)
     elif value_type == MotionMountValueType.String:
         return value.strip("\"")
-    elif value_type == MotionMountValueType.ByteArray:
-        raise ValueError("Byte array not supported")
+    elif value_type == MotionMountValueType.Bytes:
+        return bytes.fromhex(value.strip("[]"))
     elif value_type == MotionMountValueType.Bool:
         return bool(value)
     elif value_type == MotionMountValueType.Void:
@@ -159,6 +159,8 @@ class MotionMount:
     async def connect(self):
         """
         Connect to the MotionMount.
+
+        Properties that are updated by notifications are pre-fetched
         """
         reader, writer = await asyncio.open_connection(self.address, self.port)
 
@@ -203,6 +205,15 @@ class MotionMount:
             str: The name of the MotionMount.
         """
         return await self._request(Request("configuration/name", MotionMountValueType.String))
+
+    async def get_mac(self) -> bytes:
+        """
+        Get the name of the MotionMount.
+
+        Returns:
+            str: The name of the MotionMount.
+        """
+        return await self._request(Request("mac", MotionMountValueType.Bytes))
 
     async def update_position(self):
         """
