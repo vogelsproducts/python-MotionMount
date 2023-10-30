@@ -37,7 +37,7 @@ class MotionMountValueType(Enum):
     """
     Integer = 0,
     String = 1,
-    ByteArray = 2,
+    Bytes = 2,
     Bool = 3,
     IPv4 = 4,
     Void = 5,
@@ -120,8 +120,8 @@ def _convert_value(value, value_type: MotionMountValueType):
         return int(value)
     elif value_type == MotionMountValueType.String:
         return value.strip("\"")
-    elif value_type == MotionMountValueType.ByteArray:
-        raise ValueError("Byte array not supported")
+    elif value_type == MotionMountValueType.Bytes:
+        return bytes.fromhex(value.strip("[]"))
     elif value_type == MotionMountValueType.Bool:
         return bool(value)
     elif value_type == MotionMountValueType.Void:
@@ -159,6 +159,8 @@ class MotionMount:
     async def connect(self):
         """
         Connect to the MotionMount.
+
+        Properties that are updated by notifications are pre-fetched
         """
         reader, writer = await asyncio.open_connection(self.address, self.port)
 
@@ -192,6 +194,9 @@ class MotionMount:
         if writer is not None:
             await writer.wait_closed()
 
+    def is_connected(self) -> bool:
+        return self._writer is not None
+
     async def get_name(self) -> str:
         """
         Get the name of the MotionMount.
@@ -200,6 +205,15 @@ class MotionMount:
             str: The name of the MotionMount.
         """
         return await self._request(Request("configuration/name", MotionMountValueType.String))
+
+    async def get_mac(self) -> bytes:
+        """
+        Get the name of the MotionMount.
+
+        Returns:
+            str: The name of the MotionMount.
+        """
+        return await self._request(Request("mac", MotionMountValueType.Bytes))
 
     async def update_position(self):
         """
@@ -304,7 +318,7 @@ class MotionMount:
         await self._writer.drain()
 
         # Wait for our request to finish
-        value_any = await request.future
+        value_any = await asyncio.wait_for(request.future, timeout=5.0)
         value = _convert_value(value_any, request.value_type)
         return value
 
@@ -331,8 +345,19 @@ class MotionMount:
         """
         while not reader.at_eof():
             data = await reader.readline()
-            response = data.decode().strip()
 
+            if len(data) == 0:
+                # Connection was closed
+                if len(self._requests) > 0:
+                    # There is a request waiting, we will let that request know about the error
+                    popped = self._requests.popleft()
+                    popped.future.set_exception(NotConnectedError)
+
+                await self.disconnect()
+                break
+
+            # Check to see what kind of response this is
+            response = data.decode().strip()
             if response[0] == "#":
                 try:
                     response_value = MotionMountResponse(int(response[1:]))
