@@ -12,7 +12,7 @@ import collections
 
 import asyncio
 import struct
-from typing import Optional
+from typing import Optional, Callable
 from enum import Enum, IntEnum
 
 
@@ -143,10 +143,12 @@ class MotionMount:
     Args:
         address (str): The IP address of the MotionMount.
         port (int): The port number to use for the connection.
+        notification_callback: Will be called when a notification has been received.
     """
-    def __init__(self, address: str, port: int):
+    def __init__(self, address: str, port: int, notification_callback: Callable[[], None] = None):
         self.address = address
         self.port = port
+        self._notification_callback = notification_callback
 
         self._requests = collections.deque()
 
@@ -386,7 +388,6 @@ class MotionMount:
             self._target_turn = _convert_value(value, MotionMountValueType.Integer)
         elif key == "mount/errorStatus":
             self._error_status = _convert_value(value, MotionMountValueType.Integer)
-        # TODO: How to let the world know that a property changed????
 
     async def _reader(self, reader: asyncio.StreamReader):
         """
@@ -437,5 +438,5 @@ class MotionMount:
                     # We received the response to this request, we can pop it
                     popped = self._requests.popleft()
                     popped.future.set_result(value)
-                else:
-                    print(f"Notification received: {key} = {value}")
+                elif self._notification_callback:
+                    self._notification_callback()
