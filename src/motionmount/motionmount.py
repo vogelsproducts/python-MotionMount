@@ -155,12 +155,25 @@ class MotionMount:
         self._writer = None
         self._reader_task = None
 
+        self._mac = b'\x00\x00\x00\x00\x00\x00'
+        self._name = None
+
         self._extension = None
         self._turn = None
         self._is_moving = False
         self._target_extension = None
         self._target_turn = None
         self._error_status = None
+
+    @property
+    def mac(self) -> bytes:
+        """Returns the (primary) mac address"""
+        return self._mac
+        
+    @property
+    def name(self) -> str:
+        """Returns the name"""
+        return self._name
 
     @property
     def extension(self) -> int:
@@ -206,6 +219,8 @@ class MotionMount:
         self._writer = writer
         self._reader_task = asyncio.create_task(self._reader(reader))
 
+        await self._update_mac()
+        await self.update_name()
         await self.update_position()
         await self.update_error_status()
 
@@ -237,23 +252,13 @@ class MotionMount:
     def is_connected(self) -> bool:
         return self._writer is not None
 
-    async def get_name(self) -> str:
-        """
-        Get the name of the MotionMount.
+    async def _update_mac(self):
+        """Update the mac address"""
+        await self._request(Request("mac", MotionMountValueType.Void))
 
-        Returns:
-            str: The name of the MotionMount.
-        """
-        return await self._request(Request("configuration/name", MotionMountValueType.String))
-
-    async def get_mac(self) -> bytes:
-        """
-        Get the name of the MotionMount.
-
-        Returns:
-            str: The name of the MotionMount.
-        """
-        return await self._request(Request("mac", MotionMountValueType.Bytes))
+    async def update_name(self):
+        """Update the name of the MotionMount."""
+        await self._request(Request("configuration/name", MotionMountValueType.Void))
 
     async def update_position(self):
         """
@@ -388,6 +393,10 @@ class MotionMount:
             self._target_turn = _convert_value(value, MotionMountValueType.Integer)
         elif key == "mount/errorStatus":
             self._error_status = _convert_value(value, MotionMountValueType.Integer)
+        elif key == "mac":
+            self._mac = _convert_value(value, MotionMountValueType.Bytes)
+        elif key == "configuration/name":
+            self._name = _convert_value(value, MotionMountValueType.String)
 
     async def _reader(self, reader: asyncio.StreamReader):
         """

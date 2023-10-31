@@ -18,8 +18,8 @@ async def main():
 
         print(f"Extension: {mm.extension}")
 
-        name = await mm.get_name()
-        print(f"The name is: \"{name}\"")
+        print(f"The name is: \"{mm.name}\"")
+        print(f"The mac is: \"{mm.mac}\"")
 
         await mm.go_to_position(50, -50)
     except Exception as e:
