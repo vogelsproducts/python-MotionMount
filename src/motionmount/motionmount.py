@@ -439,4 +439,8 @@ class MotionMount:
                     popped = self._requests.popleft()
                     popped.future.set_result(value)
                 elif self._notification_callback:
-                    self._notification_callback()
+                    try:
+                        self._notification_callback()
+                    except Exception as e:
+                        # TODO: How to properly let the caller know something went wrong?
+                        print(f"Exception during notification: {e}")
