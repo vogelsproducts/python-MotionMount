@@ -123,7 +123,7 @@ def _convert_value(value, value_type: MotionMountValueType):
     elif value_type == MotionMountValueType.Bytes:
         return bytes.fromhex(value.strip("[]"))
     elif value_type == MotionMountValueType.Bool:
-        return bool(value)
+        return bool(int(value))
     elif value_type == MotionMountValueType.Void:
         return value
     else:
