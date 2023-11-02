@@ -4,8 +4,13 @@ import motionmount
 ip = "MMF8A55F.local." # Can also be "169.254.13.16" or similar
 port = 23 # The best way to get the port number is using zeroconf, but it's likely '23'
 
+
+def callback():
+    print("Update received")
+
+
 async def main():
-    mm = motionmount.MotionMount(ip, port)
+    mm = motionmount.MotionMount(ip, port, callback)
 
     try:
         await mm.connect()
@@ -13,8 +18,8 @@ async def main():
 
         print(f"Extension: {mm.extension}")
 
-        name = await mm.get_name()
-        print(f"The name is: \"{name}\"")
+        print(f"The name is: \"{mm.name}\"")
+        print(f"The mac is: \"{mm.mac}\"")
 
         await mm.go_to_position(50, -50)
     except Exception as e:

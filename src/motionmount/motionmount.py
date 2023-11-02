@@ -12,7 +12,7 @@ import collections
 
 import asyncio
 import struct
-from typing import Optional
+from typing import Optional, Callable
 from enum import Enum, IntEnum
 
 
@@ -123,7 +123,7 @@ def _convert_value(value, value_type: MotionMountValueType):
     elif value_type == MotionMountValueType.Bytes:
         return bytes.fromhex(value.strip("[]"))
     elif value_type == MotionMountValueType.Bool:
-        return bool(value)
+        return bool(int(value))
     elif value_type == MotionMountValueType.Void:
         return value
     else:
@@ -143,18 +143,70 @@ class MotionMount:
     Args:
         address (str): The IP address of the MotionMount.
         port (int): The port number to use for the connection.
+        notification_callback: Will be called when a notification has been received.
     """
-    def __init__(self, address: str, port: int):
+    def __init__(self, address: str, port: int, notification_callback: Callable[[], None] = None):
         self.address = address
         self.port = port
+        self._notification_callback = notification_callback
 
         self._requests = collections.deque()
 
         self._writer = None
         self._reader_task = None
 
-        self.extension = None
-        self.turn = None
+        self._mac = b'\x00\x00\x00\x00\x00\x00'
+        self._name = None
+
+        self._extension = None
+        self._turn = None
+        self._is_moving = False
+        self._target_extension = None
+        self._target_turn = None
+        self._error_status = None
+
+    @property
+    def mac(self) -> bytes:
+        """Returns the (primary) mac address"""
+        return self._mac
+        
+    @property
+    def name(self) -> str:
+        """Returns the name"""
+        return self._name
+
+    @property
+    def extension(self) -> int:
+        """The current extension of the MotionMount, normally between 0 - 100
+        but slight excursions can occur due to calibration errors, mechanical play and round-off errors"""
+        return self._extension
+
+    @property
+    def turn(self) -> int:
+        """The current rotation of the MotionMount, normally between -100 - 100
+        but slight excursions can occur due to calibration errors, mechanical play and round-off errors"""
+        return self._turn
+
+    @property
+    def is_moving(self) -> bool:
+        """When true the MotionMount is (electrically) moving to another position"""
+        return self._is_moving
+
+    @property
+    def target_extension(self) -> int:
+        """The most recent extension the MotionMount tried to move to"""
+        return self._target_extension
+
+    @property
+    def target_turn(self) -> int:
+        """The most recent turn the MotionMount tried to move to"""
+        return self._target_turn
+
+    @property
+    def error_status(self) -> int:
+        """The error status of the MotionMount.
+        See the protocol documentation for details."""
+        return self._error_status
 
     async def connect(self):
         """
@@ -167,7 +219,15 @@ class MotionMount:
         self._writer = writer
         self._reader_task = asyncio.create_task(self._reader(reader))
 
+        try:
+            await self._update_mac()
+        except MotionMountResponseError as e:
+            # We're fine with a #404, as older firmware doesn't support the mac property
+            if e.response_value != MotionMountResponse.NotFound:
+                raise
+        await self.update_name()
         await self.update_position()
+        await self.update_error_status()
 
     async def disconnect(self):
         """
@@ -197,23 +257,13 @@ class MotionMount:
     def is_connected(self) -> bool:
         return self._writer is not None
 
-    async def get_name(self) -> str:
-        """
-        Get the name of the MotionMount.
+    async def _update_mac(self):
+        """Update the mac address"""
+        await self._request(Request("mac", MotionMountValueType.Void))
 
-        Returns:
-            str: The name of the MotionMount.
-        """
-        return await self._request(Request("configuration/name", MotionMountValueType.String))
-
-    async def get_mac(self) -> bytes:
-        """
-        Get the name of the MotionMount.
-
-        Returns:
-            str: The name of the MotionMount.
-        """
-        return await self._request(Request("mac", MotionMountValueType.Bytes))
+    async def update_name(self):
+        """Update the name of the MotionMount."""
+        await self._request(Request("configuration/name", MotionMountValueType.Void))
 
     async def update_position(self):
         """
@@ -224,6 +274,24 @@ class MotionMount:
         await self._request(Request("mount/extension/current", MotionMountValueType.Void))
         await self._request(Request("mount/turn/current", MotionMountValueType.Void))
 
+    async def update_error_status(self):
+        """Fetch the error status from the MotionMount"""
+        # We mark the value types as Void, as we've no further interest in the actual value
+        # We just want to trigger the notification logic
+        await self._request(Request("mount/errorStatus", MotionMountValueType.Void))
+
+    async def get_presets(self) -> dict[int, str]:
+        """Gets the valid user presets from the device."""
+        presets = {}
+        
+        for i in range(1,8):
+            valid = await self._request(Request(f"mount/preset/{i}/active", MotionMountValueType.Bool))
+
+            if valid:
+                presets[i] = await self._request(Request(f"mount/preset/{i}/name", MotionMountValueType.String))
+            
+        return presets
+        
     async def go_to_preset(self, position: int):
         """
         Go to a preset position.
@@ -331,10 +399,21 @@ class MotionMount:
             value (str): The corresponding value.
         """
         if key == "mount/extension/current":
-            self.extension = _convert_value(value, MotionMountValueType.Integer)
+            self._extension = _convert_value(value, MotionMountValueType.Integer)
         elif key == "mount/turn/current":
-            self.turn = _convert_value(value, MotionMountValueType.Integer)
-        # TODO: How to let the world know that a property changed????
+            self._turn = _convert_value(value, MotionMountValueType.Integer)
+        elif key == "mount/isMoving":
+            self._is_moving = _convert_value(value, MotionMountValueType.Bool)
+        elif key == "mount/extension/target":
+            self._target_extension = _convert_value(value, MotionMountValueType.Integer)
+        elif key == "mount/turn/target":
+            self._target_turn = _convert_value(value, MotionMountValueType.Integer)
+        elif key == "mount/errorStatus":
+            self._error_status = _convert_value(value, MotionMountValueType.Integer)
+        elif key == "mac":
+            self._mac = _convert_value(value, MotionMountValueType.Bytes)
+        elif key == "configuration/name":
+            self._name = _convert_value(value, MotionMountValueType.String)
 
     async def _reader(self, reader: asyncio.StreamReader):
         """
@@ -385,5 +464,9 @@ class MotionMount:
                     # We received the response to this request, we can pop it
                     popped = self._requests.popleft()
                     popped.future.set_result(value)
-                else:
-                    print(f"Notification received: {key} = {value}")
+                elif self._notification_callback:
+                    try:
+                        self._notification_callback()
+                    except Exception as e:
+                        # TODO: How to properly let the caller know something went wrong?
+                        print(f"Exception during notification: {e}")
