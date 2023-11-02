@@ -219,7 +219,12 @@ class MotionMount:
         self._writer = writer
         self._reader_task = asyncio.create_task(self._reader(reader))
 
-        await self._update_mac()
+        try:
+            await self._update_mac()
+        except MotionMountResponseError as e:
+            # We're fine with a #404, as older firmware doesn't support the mac property
+            if e.response_value != MotionMountResponse.NotFound:
+                raise
         await self.update_name()
         await self.update_position()
         await self.update_error_status()
