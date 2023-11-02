@@ -280,6 +280,18 @@ class MotionMount:
         # We just want to trigger the notification logic
         await self._request(Request("mount/errorStatus", MotionMountValueType.Void))
 
+    async def get_presets(self) -> dict[int, str]:
+        """Gets the valid user presets from the device."""
+        presets = {}
+        
+        for i in range(1,8):
+            valid = await self._request(Request(f"mount/preset/{i}/active", MotionMountValueType.Bool))
+
+            if valid:
+                presets[i] = await self._request(Request(f"mount/preset/{i}/name", MotionMountValueType.String))
+            
+        return presets
+        
     async def go_to_preset(self, position: int):
         """
         Go to a preset position.
