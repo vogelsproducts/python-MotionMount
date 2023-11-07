@@ -12,7 +12,7 @@ import collections
 
 import asyncio
 import struct
-from typing import Optional, Callable
+from typing import Optional, Callable, Deque
 from enum import Enum, IntEnum
 
 
@@ -145,12 +145,12 @@ class MotionMount:
         port (int): The port number to use for the connection.
         notification_callback: Will be called when a notification has been received.
     """
-    def __init__(self, address: str, port: int, notification_callback: Callable[[], None] = None):
+    def __init__(self, address: str, port: int, notification_callback: Callable[[], None] | None = None):
         self.address = address
         self.port = port
         self._notification_callback = notification_callback
 
-        self._requests = collections.deque()
+        self._requests: Deque['Request'] = collections.deque()
 
         self._writer = None
         self._reader_task = None
@@ -171,39 +171,39 @@ class MotionMount:
         return self._mac
         
     @property
-    def name(self) -> str:
+    def name(self) -> Optional[str]:
         """Returns the name"""
         return self._name
 
     @property
-    def extension(self) -> int:
+    def extension(self) -> Optional[int]:
         """The current extension of the MotionMount, normally between 0 - 100
         but slight excursions can occur due to calibration errors, mechanical play and round-off errors"""
         return self._extension
 
     @property
-    def turn(self) -> int:
+    def turn(self) -> Optional[int]:
         """The current rotation of the MotionMount, normally between -100 - 100
         but slight excursions can occur due to calibration errors, mechanical play and round-off errors"""
         return self._turn
 
     @property
-    def is_moving(self) -> bool:
+    def is_moving(self) -> Optional[bool]:
         """When true the MotionMount is (electrically) moving to another position"""
         return self._is_moving
 
     @property
-    def target_extension(self) -> int:
+    def target_extension(self) -> Optional[int]:
         """The most recent extension the MotionMount tried to move to"""
         return self._target_extension
 
     @property
-    def target_turn(self) -> int:
+    def target_turn(self) -> Optional[int]:
         """The most recent turn the MotionMount tried to move to"""
         return self._target_turn
 
     @property
-    def error_status(self) -> int:
+    def error_status(self) -> Optional[int]:
         """The error status of the MotionMount.
         See the protocol documentation for details."""
         return self._error_status
@@ -464,7 +464,7 @@ class MotionMount:
                     # We received the response to this request, we can pop it
                     popped = self._requests.popleft()
                     popped.future.set_result(value)
-                elif self._notification_callback:
+                elif self._notification_callback is not None:
                     try:
                         self._notification_callback()
                     except Exception as e:
