@@ -12,7 +12,7 @@ import collections
 
 import asyncio
 import struct
-from typing import Optional, Callable, Deque
+from typing import Optional, Callable, Deque, Any
 from enum import Enum, IntEnum
 
 
@@ -145,15 +145,16 @@ class MotionMount:
         port (int): The port number to use for the connection.
         notification_callback: Will be called when a notification has been received.
     """
-    def __init__(self, address: str, port: int, notification_callback: Callable[[], None] | None = None):
+    def __init__(self, address: str, port: int):
         self.address = address
         self.port = port
-        self._notification_callback = notification_callback
+        
+        self._callbacks: list[Callable[[], None]] = []
 
         self._requests: Deque['Request'] = collections.deque()
 
-        self._writer = None
-        self._reader_task = None
+        self._writer: asyncio.StreamWriter | None = None
+        self._reader_task: asyncio.Task[Any] | None = None
 
         self._mac = b'\x00\x00\x00\x00\x00\x00'
         self._name = None
@@ -208,7 +209,7 @@ class MotionMount:
         See the protocol documentation for details."""
         return self._error_status
 
-    async def connect(self):
+    async def connect(self) -> None:
         """
         Connect to the MotionMount.
 
@@ -229,7 +230,7 @@ class MotionMount:
         await self.update_position()
         await self.update_error_status()
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """
         Disconnect from the MotionMount.
         """
@@ -254,6 +255,13 @@ class MotionMount:
         if writer is not None:
             await writer.wait_closed()
 
+    def add_listener(self, callback: Callable[[], None]) -> None:
+        """Register callback as a listener for updates."""
+        self._callbacks.append(callback)
+        
+    def remove_listener(self, callback: Callable[[], None]) -> None:
+        self._callbacks.remove(callback)
+        
     def is_connected(self) -> bool:
         return self._writer is not None
 
@@ -415,7 +423,7 @@ class MotionMount:
         elif key == "configuration/name":
             self._name = _convert_value(value, MotionMountValueType.String)
 
-    async def _reader(self, reader: asyncio.StreamReader):
+    async def _reader(self, reader: asyncio.StreamReader) -> None:
         """
         Infinite loop to receive data from the MotionMount and dispatch it to waiting requests.
 
@@ -464,9 +472,10 @@ class MotionMount:
                     # We received the response to this request, we can pop it
                     popped = self._requests.popleft()
                     popped.future.set_result(value)
-                elif self._notification_callback is not None:
-                    try:
-                        self._notification_callback()
-                    except Exception as e:
-                        # TODO: How to properly let the caller know something went wrong?
-                        print(f"Exception during notification: {e}")
+                else:
+                    for callback in self._callbacks:
+                        try:
+                            callback()
+                        except Exception as e:
+                            # TODO: How to properly let the caller know something went wrong?
+                            print(f"Exception during notification: {e}")
