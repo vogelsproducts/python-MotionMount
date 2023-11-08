@@ -12,7 +12,7 @@ import collections
 
 import asyncio
 import struct
-from typing import Optional, Callable
+from typing import Optional, Callable, Deque, Any
 from enum import Enum, IntEnum
 
 
@@ -145,15 +145,16 @@ class MotionMount:
         port (int): The port number to use for the connection.
         notification_callback: Will be called when a notification has been received.
     """
-    def __init__(self, address: str, port: int, notification_callback: Callable[[], None] = None):
+    def __init__(self, address: str, port: int):
         self.address = address
         self.port = port
-        self._notification_callback = notification_callback
+        
+        self._callbacks: list[Callable[[], None]] = []
 
-        self._requests = collections.deque()
+        self._requests: Deque['Request'] = collections.deque()
 
-        self._writer = None
-        self._reader_task = None
+        self._writer: asyncio.StreamWriter | None = None
+        self._reader_task: asyncio.Task[Any] | None = None
 
         self._mac = b'\x00\x00\x00\x00\x00\x00'
         self._name = None
@@ -171,44 +172,44 @@ class MotionMount:
         return self._mac
         
     @property
-    def name(self) -> str:
+    def name(self) -> Optional[str]:
         """Returns the name"""
         return self._name
 
     @property
-    def extension(self) -> int:
+    def extension(self) -> Optional[int]:
         """The current extension of the MotionMount, normally between 0 - 100
         but slight excursions can occur due to calibration errors, mechanical play and round-off errors"""
         return self._extension
 
     @property
-    def turn(self) -> int:
+    def turn(self) -> Optional[int]:
         """The current rotation of the MotionMount, normally between -100 - 100
         but slight excursions can occur due to calibration errors, mechanical play and round-off errors"""
         return self._turn
 
     @property
-    def is_moving(self) -> bool:
+    def is_moving(self) -> Optional[bool]:
         """When true the MotionMount is (electrically) moving to another position"""
         return self._is_moving
 
     @property
-    def target_extension(self) -> int:
+    def target_extension(self) -> Optional[int]:
         """The most recent extension the MotionMount tried to move to"""
         return self._target_extension
 
     @property
-    def target_turn(self) -> int:
+    def target_turn(self) -> Optional[int]:
         """The most recent turn the MotionMount tried to move to"""
         return self._target_turn
 
     @property
-    def error_status(self) -> int:
+    def error_status(self) -> Optional[int]:
         """The error status of the MotionMount.
         See the protocol documentation for details."""
         return self._error_status
 
-    async def connect(self):
+    async def connect(self) -> None:
         """
         Connect to the MotionMount.
 
@@ -229,7 +230,7 @@ class MotionMount:
         await self.update_position()
         await self.update_error_status()
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """
         Disconnect from the MotionMount.
         """
@@ -254,6 +255,13 @@ class MotionMount:
         if writer is not None:
             await writer.wait_closed()
 
+    def add_listener(self, callback: Callable[[], None]) -> None:
+        """Register callback as a listener for updates."""
+        self._callbacks.append(callback)
+        
+    def remove_listener(self, callback: Callable[[], None]) -> None:
+        self._callbacks.remove(callback)
+        
     def is_connected(self) -> bool:
         return self._writer is not None
 
@@ -415,7 +423,7 @@ class MotionMount:
         elif key == "configuration/name":
             self._name = _convert_value(value, MotionMountValueType.String)
 
-    async def _reader(self, reader: asyncio.StreamReader):
+    async def _reader(self, reader: asyncio.StreamReader) -> None:
         """
         Infinite loop to receive data from the MotionMount and dispatch it to waiting requests.
 
@@ -464,9 +472,10 @@ class MotionMount:
                     # We received the response to this request, we can pop it
                     popped = self._requests.popleft()
                     popped.future.set_result(value)
-                elif self._notification_callback:
-                    try:
-                        self._notification_callback()
-                    except Exception as e:
-                        # TODO: How to properly let the caller know something went wrong?
-                        print(f"Exception during notification: {e}")
+                else:
+                    for callback in self._callbacks:
+                        try:
+                            callback()
+                        except Exception as e:
+                            # TODO: How to properly let the caller know something went wrong?
+                            print(f"Exception during notification: {e}")
