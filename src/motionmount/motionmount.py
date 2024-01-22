@@ -253,7 +253,10 @@ class MotionMount:
 
         # Wait for the stream to really close
         if writer is not None:
-            await writer.wait_closed()
+            try:
+                await writer.wait_closed()
+            except:
+                pass # We're not interested in exceptions
 
     def add_listener(self, callback: Callable[[], None]) -> None:
         """Register callback as a listener for updates."""
