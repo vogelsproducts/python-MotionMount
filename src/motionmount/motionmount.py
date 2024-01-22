@@ -262,6 +262,7 @@ class MotionMount:
     def remove_listener(self, callback: Callable[[], None]) -> None:
         self._callbacks.remove(callback)
         
+    @property
     def is_connected(self) -> bool:
         return self._writer is not None
 
