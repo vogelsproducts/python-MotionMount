@@ -251,9 +251,16 @@ class MotionMount:
         self._reader_task = None
         self._requests.clear()
 
+        # Let listeners know that we've a changed state (disconnected)
+        for callback in self._callbacks:
+            callback()
+
         # Wait for the stream to really close
         if writer is not None:
-            await writer.wait_closed()
+            try:
+                await writer.wait_closed()
+            except:
+                pass # We're not interested in exceptions
 
     def add_listener(self, callback: Callable[[], None]) -> None:
         """Register callback as a listener for updates."""
@@ -262,6 +269,7 @@ class MotionMount:
     def remove_listener(self, callback: Callable[[], None]) -> None:
         self._callbacks.remove(callback)
         
+    @property
     def is_connected(self) -> bool:
         return self._writer is not None
 
@@ -377,26 +385,31 @@ class MotionMount:
         if self._writer is None:
             raise NotConnectedError
 
-        # Check a possible previous request and wait for it to finish
-        previous_request = None
-        if len(self._requests) > 0:
-            previous_request = self._requests[len(self._requests) - 1]
+        try:
+            # Check a possible previous request and wait for it to finish
+            previous_request = None
+            if len(self._requests) > 0:
+                previous_request = self._requests[len(self._requests) - 1]
 
-        # Add ourselves to the queue
-        self._requests.append(request)
+            # Add ourselves to the queue
+            self._requests.append(request)
 
-        # Wait for the previous request
-        if previous_request is not None:
-            await previous_request.future
+            # Wait for the previous request
+            if previous_request is not None:
+                await previous_request.future
 
-        # We're ready to go!
-        self._writer.write(request.encoded())
-        await self._writer.drain()
+            # We're ready to go!
+            self._writer.write(request.encoded())
+            await self._writer.drain()
 
-        # Wait for our request to finish
-        value_any = await asyncio.wait_for(request.future, timeout=5.0)
-        value = _convert_value(value_any, request.value_type)
-        return value
+            # Wait for our request to finish
+            value_any = await asyncio.wait_for(request.future, timeout=5.0)
+            value = _convert_value(value_any, request.value_type)
+            return value
+        except:
+            # Make sure we disconnect when there was a failure
+            await self.disconnect()
+            raise
 
     def _update_properties(self, key: str, value: str):
         """
