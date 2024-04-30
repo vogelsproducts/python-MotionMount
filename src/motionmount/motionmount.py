@@ -314,13 +314,13 @@ class MotionMount:
         Preset 0 is the (fixed) Wall position.
 
         Args:
-            position (int): The preset position to go to (0 - 9).
+            position (int): The preset position to go to (0 - 7).
 
         Raises:
             ValueError: If the position is out of range.
         """
-        if position < 0 or position > 9:
-            raise ValueError("position must be in the range [0...9]")
+        if position < 0 or position > 7:
+            raise ValueError("position must be in the range [0...7]")
 
         await self._request(Request(f"mount/preset/index = {position}", MotionMountValueType.Void))
 

@@ -41,3 +41,5 @@ To get the IP address of the MotionMount you can use [pyzeroconf](https://github
   
 A simple example using `pyzeroconf` is included in the `examples` folder.
     
+# Changelog
+1.0.1: - Fix bug in allowed preset indices
