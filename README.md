@@ -43,3 +43,4 @@ A simple example using `pyzeroconf` is included in the `examples` folder.
     
 # Changelog
 1.0.1: - Fix bug in allowed preset indices
+2.0.0: - Include position data in presets

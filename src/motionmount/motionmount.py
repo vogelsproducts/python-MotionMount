@@ -129,6 +129,18 @@ def _convert_value(value, value_type: MotionMountValueType):
     else:
         raise ValueError("Unknown value type")
 
+class Preset:
+    """Class for storing preset related data"""
+    index: int
+    name: str
+    extension: int
+    turn: int
+
+    def __init__(self, index, name, extension, turn):
+        self.index = index
+        self.name = name
+        self.extension = extension
+        self.turn = turn
 
 class MotionMount:
     """
@@ -296,16 +308,22 @@ class MotionMount:
         # We just want to trigger the notification logic
         await self._request(Request("mount/errorStatus", MotionMountValueType.Void))
 
-    async def get_presets(self) -> dict[int, str]:
+    async def get_presets(self) -> [Preset]:
         """Gets the valid user presets from the device."""
-        presets = {}
-        
+        presets = []
+
         for i in range(1,8):
             valid = await self._request(Request(f"mount/preset/{i}/active", MotionMountValueType.Bool))
 
             if valid:
-                presets[i] = await self._request(Request(f"mount/preset/{i}/name", MotionMountValueType.String))
-            
+                name = await self._request(Request(f"mount/preset/{i}/name", MotionMountValueType.String))
+                extension = await self._request(Request(f"mount/preset/{i}/extension", MotionMountValueType.Integer))
+                turn = await self._request(Request(f"mount/preset/{i}/turn", MotionMountValueType.Integer))
+
+                preset = Preset(i, name, extension, turn)
+
+                presets.append(preset)
+
         return presets
         
     async def go_to_preset(self, position: int):
