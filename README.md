@@ -45,3 +45,5 @@ A simple example using `pyzeroconf` is included in the `examples` folder.
 1.0.1: - Fix bug in allowed preset indices
 
 2.0.0: - Include position data in presets
+
+2.1.0: - Add timeout (15 s) to `connect()`
