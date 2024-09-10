@@ -227,7 +227,8 @@ class MotionMount:
 
         Properties that are updated by notifications are pre-fetched
         """
-        reader, writer = await asyncio.open_connection(self.address, self.port)
+        connection_future = asyncio.open_connection(self.address, self.port)
+        reader, writer = await asyncio.wait_for(connection_future, timeout=15)
 
         self._writer = writer
         self._reader_task = asyncio.create_task(self._reader(reader))
