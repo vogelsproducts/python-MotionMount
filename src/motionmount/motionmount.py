@@ -177,6 +177,7 @@ class MotionMount:
         self._target_extension = None
         self._target_turn = None
         self._error_status = None
+        self._authentication_status = 0x0
 
     @property
     def mac(self) -> bytes:
@@ -221,6 +222,10 @@ class MotionMount:
         See the protocol documentation for details."""
         return self._error_status
 
+    @property
+    def is_authenticated(self) -> bool:
+        return self._authentication_status & 0x80 == 0x80
+
     async def connect(self) -> None:
         """
         Connect to the MotionMount.
@@ -242,6 +247,7 @@ class MotionMount:
         await self.update_name()
         await self.update_position()
         await self.update_error_status()
+        await self.update_authentication_status()
 
     async def disconnect(self) -> None:
         """
@@ -308,6 +314,12 @@ class MotionMount:
         # We mark the value types as Void, as we've no further interest in the actual value
         # We just want to trigger the notification logic
         await self._request(Request("mount/errorStatus", MotionMountValueType.Void))
+
+    async def update_authentication_status(self):
+        """Fetch authentication status from the MotionMount."""
+        # We mark the value types as Void, as we've no further interest in the actual value
+        # We just want to trigger the notification logic
+        await self._request(Request("configuration/authentication/status", MotionMountValueType.Void))
 
     async def get_presets(self) -> [Preset]:
         """Gets the valid user presets from the device."""
@@ -390,6 +402,21 @@ class MotionMount:
             raise ValueError("turn must be in the range [-100...100]")
         await self._request(Request(f"mount/turn/target = {turn}", MotionMountValueType.Void))
 
+    async def authenticate(self, pin: int):
+        """
+        Provide a pin to authenticate.
+
+        Args:
+            pin (int): The pin code for the 'User' level to authenticate with (1-9999)
+
+        Raises:
+            ValueError: If the pin code is outside the range.
+        """
+        if pin < 1 or pin > 9999:
+            raise ValueError("pin must be in the range [1...9999]")
+        await self._request(Request(f"configuration/authentication/pin = {pin}", MotionMountValueType.Void))
+        await self.update_authentication_status()
+
     async def _request(self, request: Request):
         """
         Enqueues a request, waits for possible earlier requests, and then waits for the request to finish.
@@ -450,6 +477,8 @@ class MotionMount:
             self._target_turn = _convert_value(value, MotionMountValueType.Integer)
         elif key == "mount/errorStatus":
             self._error_status = _convert_value(value, MotionMountValueType.Integer)
+        elif key == "configuration/authentication/status":
+            self._authentication_status = _convert_value(value, MotionMountValueType.Bytes)[0]
         elif key == "mac":
             self._mac = _convert_value(value, MotionMountValueType.Bytes)
         elif key == "configuration/name":
