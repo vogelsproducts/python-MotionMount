@@ -452,6 +452,8 @@ class MotionMount:
             value_any = await asyncio.wait_for(request.future, timeout=5.0)
             value = _convert_value(value_any, request.value_type)
             return value
+        except MotionMountResponseError:
+            pass
         except:
             # Make sure we disconnect when there was a failure
             await self.disconnect()
