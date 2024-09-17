@@ -226,6 +226,13 @@ class MotionMount:
     def is_authenticated(self) -> bool:
         return self._authentication_status & 0x80 == 0x80
 
+    @property
+    def can_authenticate(self) -> bool | int:
+        if self._authentication_status <= 3:
+            return True
+        else:
+            return (self._authentication_status-3) * 3
+
     async def connect(self) -> None:
         """
         Connect to the MotionMount.
