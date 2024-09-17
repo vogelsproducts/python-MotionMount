@@ -224,10 +224,17 @@ class MotionMount:
 
     @property
     def is_authenticated(self) -> bool:
+        """Indicates whether we're authenticated to the MotionMount (or no
+        authentication is needed)."""
         return self._authentication_status & 0x80 == 0x80
 
     @property
     def can_authenticate(self) -> bool | int:
+        """Indicates whether we can authenticate.
+        When there are too many failed authentication attempts the MotionMount enforces
+        a backoff time.
+        This propperty either returns `True` if authentication is possible or the (last
+        known) backoff time."""
         if self._authentication_status <= 3:
             return True
         else:
