@@ -235,7 +235,7 @@ class MotionMount:
         a backoff time.
         This propperty either returns `True` if authentication is possible or the (last
         known) backoff time."""
-        if self._authentication_status <= 3:
+        if self.is_authenticated or self._authentication_status <= 3:
             return True
         else:
             return (self._authentication_status-3) * 3
