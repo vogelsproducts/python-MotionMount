@@ -50,3 +50,5 @@ If you want to run the examples from a clone of the repository you can use a com
 2.0.0: - Include position data in presets
 
 2.1.0: - Add timeout (15 s) to `connect()`
+
+2.2.0: - Add support for authentication to the MotionMount
