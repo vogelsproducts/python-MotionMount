@@ -12,7 +12,7 @@ import collections
 
 import asyncio
 import struct
-from typing import Optional, Callable, Deque, Any
+from typing import Optional, Callable, Deque, Any, Union, List
 from enum import Enum, IntEnum
 
 
@@ -165,8 +165,8 @@ class MotionMount:
 
         self._requests: Deque['Request'] = collections.deque()
 
-        self._writer: asyncio.StreamWriter | None = None
-        self._reader_task: asyncio.Task[Any] | None = None
+        self._writer: Optional[asyncio.StreamWriter] = None
+        self._reader_task: Optional[asyncio.Task[Any]] = None
 
         self._mac = b'\x00\x00\x00\x00\x00\x00'
         self._name = None
@@ -229,7 +229,7 @@ class MotionMount:
         return self._authentication_status & 0x80 == 0x80
 
     @property
-    def can_authenticate(self) -> bool | int:
+    def can_authenticate(self) -> Union[bool, int]:
         """Indicates whether we can authenticate.
         When there are too many failed authentication attempts the MotionMount enforces
         a backoff time.
@@ -335,7 +335,7 @@ class MotionMount:
         # We just want to trigger the notification logic
         await self._request(Request("configuration/authentication/status", MotionMountValueType.Void))
 
-    async def get_presets(self) -> [Preset]:
+    async def get_presets(self) -> List[Preset]:
         """Gets the valid user presets from the device."""
         presets = []
 
