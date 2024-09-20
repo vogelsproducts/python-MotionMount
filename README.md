@@ -1,5 +1,5 @@
 # Introduction 
-This Python module allows control of the TVM7675 Pro (Signature) series of MotionMount's from Vogel's Products.
+This Python module allows control of the TVM 7675 Pro (SIGNATURE) series of MotionMount's from Vogel's Products.
 
 # Getting Started
 This module can be installed using the following command:
@@ -40,10 +40,15 @@ if __name__ == '__main__':
 To get the IP address of the MotionMount you can use [pyzeroconf](https://github.com/paulsm/pyzeroconf) or you can use a manual tool like `dns-sd` in the macOS Terminal or a GUI tool like [Discovery](https://apps.apple.com/nl/app/discovery-dns-sd-browser/id1381004916?mt=12) (macOS) or [Bonjour Browser](https://hobbyistsoftware.com/bonjourbrowser) (Windows)
   
 A simple example using `pyzeroconf` is included in the `examples` folder.
-    
+  
+If you want to run the examples from a clone of the repository you can use a command similar to:
+`PYTHONPATH=./src/motionmount python examples/simple.py`
+
 # Changelog
 1.0.1: - Fix bug in allowed preset indices
 
 2.0.0: - Include position data in presets
 
 2.1.0: - Add timeout (15 s) to `connect()`
+
+2.2.0: - Add support for authentication to the MotionMount

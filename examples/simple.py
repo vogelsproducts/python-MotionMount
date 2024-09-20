@@ -10,7 +10,8 @@ def callback():
 
 
 async def main():
-    mm = motionmount.MotionMount(ip, port, callback)
+    mm = motionmount.MotionMount(ip, port)
+    mm.add_listener(callback)
 
     try:
         await mm.connect()

@@ -12,7 +12,7 @@ import collections
 
 import asyncio
 import struct
-from typing import Optional, Callable, Deque, Any
+from typing import Optional, Callable, Deque, Any, Union, List
 from enum import Enum, IntEnum
 
 
@@ -165,8 +165,8 @@ class MotionMount:
 
         self._requests: Deque['Request'] = collections.deque()
 
-        self._writer: asyncio.StreamWriter | None = None
-        self._reader_task: asyncio.Task[Any] | None = None
+        self._writer: Optional[asyncio.StreamWriter] = None
+        self._reader_task: Optional[asyncio.Task[Any]] = None
 
         self._mac = b'\x00\x00\x00\x00\x00\x00'
         self._name = None
@@ -177,6 +177,7 @@ class MotionMount:
         self._target_extension = None
         self._target_turn = None
         self._error_status = None
+        self._authentication_status = 0x0
 
     @property
     def mac(self) -> bytes:
@@ -221,6 +222,24 @@ class MotionMount:
         See the protocol documentation for details."""
         return self._error_status
 
+    @property
+    def is_authenticated(self) -> bool:
+        """Indicates whether we're authenticated to the MotionMount (or no
+        authentication is needed)."""
+        return self._authentication_status & 0x80 == 0x80
+
+    @property
+    def can_authenticate(self) -> Union[bool, int]:
+        """Indicates whether we can authenticate.
+        When there are too many failed authentication attempts the MotionMount enforces
+        a backoff time.
+        This propperty either returns `True` if authentication is possible or the (last
+        known) backoff time."""
+        if self.is_authenticated or self._authentication_status <= 3:
+            return True
+        else:
+            return (self._authentication_status-3) * 3
+
     async def connect(self) -> None:
         """
         Connect to the MotionMount.
@@ -242,6 +261,7 @@ class MotionMount:
         await self.update_name()
         await self.update_position()
         await self.update_error_status()
+        await self.update_authentication_status()
 
     async def disconnect(self) -> None:
         """
@@ -309,7 +329,13 @@ class MotionMount:
         # We just want to trigger the notification logic
         await self._request(Request("mount/errorStatus", MotionMountValueType.Void))
 
-    async def get_presets(self) -> [Preset]:
+    async def update_authentication_status(self):
+        """Fetch authentication status from the MotionMount."""
+        # We mark the value types as Void, as we've no further interest in the actual value
+        # We just want to trigger the notification logic
+        await self._request(Request("configuration/authentication/status", MotionMountValueType.Void))
+
+    async def get_presets(self) -> List[Preset]:
         """Gets the valid user presets from the device."""
         presets = []
 
@@ -390,6 +416,21 @@ class MotionMount:
             raise ValueError("turn must be in the range [-100...100]")
         await self._request(Request(f"mount/turn/target = {turn}", MotionMountValueType.Void))
 
+    async def authenticate(self, pin: int):
+        """
+        Provide a pin to authenticate.
+
+        Args:
+            pin (int): The pin code for the 'User' level to authenticate with (1-9999)
+
+        Raises:
+            ValueError: If the pin code is outside the range.
+        """
+        if pin < 1 or pin > 9999:
+            raise ValueError("pin must be in the range [1...9999]")
+        await self._request(Request(f"configuration/authentication/pin = {pin}", MotionMountValueType.Void))
+        await self.update_authentication_status()
+
     async def _request(self, request: Request):
         """
         Enqueues a request, waits for possible earlier requests, and then waits for the request to finish.
@@ -425,6 +466,8 @@ class MotionMount:
             value_any = await asyncio.wait_for(request.future, timeout=5.0)
             value = _convert_value(value_any, request.value_type)
             return value
+        except MotionMountResponseError:
+            pass
         except:
             # Make sure we disconnect when there was a failure
             await self.disconnect()
@@ -450,6 +493,8 @@ class MotionMount:
             self._target_turn = _convert_value(value, MotionMountValueType.Integer)
         elif key == "mount/errorStatus":
             self._error_status = _convert_value(value, MotionMountValueType.Integer)
+        elif key == "configuration/authentication/status":
+            self._authentication_status = _convert_value(value, MotionMountValueType.Bytes)[0]
         elif key == "mac":
             self._mac = _convert_value(value, MotionMountValueType.Bytes)
         elif key == "configuration/name":
