@@ -10,7 +10,6 @@ def callback():
 
 
 async def main():
-    global mm
     mm = motionmount.MotionMount(ip, port)
     mm.add_listener(callback)
 
