@@ -13,7 +13,7 @@ import collections
 import asyncio
 import struct
 from typing import Optional, Callable, Deque, Any, Union, List
-from enum import Enum, IntEnum
+from enum import Enum, IntEnum, IntFlag, auto
 
 
 class MotionMountResponse(IntEnum):
@@ -42,6 +42,16 @@ class MotionMountValueType(Enum):
     IPv4 = 4,
     Void = 5,
 
+
+class MotionMountSystemError(IntFlag):
+    """
+    Enum representing the (aggregated) system errors of the MotionMount.
+    """
+    MotorError = auto()
+    HDMICECError = auto()
+    ObstructionDetected = auto()
+    TVWidthConstraintError = auto()
+    InternalError = auto()
 
 class MotionMountError(Exception):
     """
@@ -219,8 +229,29 @@ class MotionMount:
     @property
     def error_status(self) -> Optional[int]:
         """The error status of the MotionMount.
-        See the protocol documentation for details."""
+        See the protocol documentation for details.
+        It's recommended to use the `system_status` property for pre-parsed status
+        information"""
         return self._error_status
+
+    @property
+    def system_status(self) -> MotionMountSystemError:
+        """The status of the MotionMount.
+        These flags are aggregated errors from the underlying detailed errors."""
+        errors = ((self.error_status or 0) >> 16) & 0x7fff # We're only interested in the active errors
+        status = MotionMountSystemError(0)
+
+        if errors & (1 << 10):
+            status |= MotionMountSystemError.MotorError
+        if errors & (1 << 4):
+            status |= MotionMountSystemError.HDMICECError
+        if errors & (1 << 11):
+            status |= MotionMountSystemError.ObstructionDetected
+        if errors & (1 << 12):
+            status |= MotionMountSystemError.TVWidthConstraintError
+        if errors & (0b1111100000):
+            status |= MotionMountSystemError.InternalError
+        return status
 
     @property
     def is_authenticated(self) -> bool:
