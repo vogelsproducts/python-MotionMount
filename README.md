@@ -54,3 +54,5 @@ If you want to run the examples from a clone of the repository you can use a com
 2.2.0: - Add support for authentication to the MotionMount
 
 2.3.0: - Add new `system_status` property for pre-parsed aggregated system status
+
+2.3.1: - Handle new style system status
