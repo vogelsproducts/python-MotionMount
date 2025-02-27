@@ -241,16 +241,29 @@ class MotionMount:
         errors = ((self.error_status or 0) >> 16) & 0x7fff # We're only interested in the active errors
         status = MotionMountSystemError(0)
 
-        if errors & (1 << 10):
-            status |= MotionMountSystemError.MotorError
-        if errors & (1 << 4):
-            status |= MotionMountSystemError.HDMICECError
-        if errors & (1 << 11):
-            status |= MotionMountSystemError.ObstructionDetected
-        if errors & (1 << 12):
-            status |= MotionMountSystemError.TVWidthConstraintError
-        if errors & (0b1111100000):
-            status |= MotionMountSystemError.InternalError
+        if errors == 0:
+            # We don't have new-style errors, so decode old-style
+            error_status = (self.error_status or 0)
+
+            if error_status & (1 << 31):
+                if error_status & (1 << 10):
+                    status |= MotionMountSystemError.MotorError
+                elif error_status & (1 << 4):
+                    status |= MotionMountSystemError.HDMICECError
+                else:
+                    status |= MotionMountSystemError.InternalError
+        else:
+            if errors & (1 << 10):
+                status |= MotionMountSystemError.MotorError
+            if errors & (1 << 4):
+                status |= MotionMountSystemError.HDMICECError
+            if errors & (1 << 11):
+                status |= MotionMountSystemError.ObstructionDetected
+            if errors & (1 << 12):
+                status |= MotionMountSystemError.TVWidthConstraintError
+            if errors & (0b1111100000):
+                status |= MotionMountSystemError.InternalError
+
         return status
 
     @property
